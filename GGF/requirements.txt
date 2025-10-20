@@ -10,3 +10,5 @@ einops
 omegaconf
 tqdm
 transformers
+diffusers
+diffusers

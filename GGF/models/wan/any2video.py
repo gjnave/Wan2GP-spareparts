@@ -95,7 +95,7 @@ class WanAny2V:
         VAE_dtype = torch.float32,
         mixed_precision_transformer = False
     ):
-        self.device = torch.device(f"cuda")
+        self.device = torch.device(f"cpu")
         self.config = config
         self.VAE_dtype = VAE_dtype
         self.dtype = dtype
