@@ -1,0 +1,12 @@
+gradio
+torch
+huggingface_hub
+mmgp
+numpy
+Pillow
+torchvision
+safetensors
+einops
+omegaconf
+tqdm
+transformers
