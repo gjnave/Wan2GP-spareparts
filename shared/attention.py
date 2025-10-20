@@ -5,8 +5,13 @@ from mmgp import offload
 import torch.nn.functional as F
 import warnings
 
-major, minor = torch.cuda.get_device_capability(None)
-bfloat16_supported =  major >= 8 
+major, minor = (0, 0)
+if torch.cuda.is_available():
+    try:
+        major, minor = torch.cuda.get_device_capability(None)
+    except RuntimeError:
+        pass
+bfloat16_supported =  major >= 8
 
 try:
     from xformers.ops import memory_efficient_attention
@@ -160,6 +165,8 @@ def get_attention_modes():
 
 def get_supported_attention_modes():
     ret = get_attention_modes()
+    if not torch.cuda.is_available():
+        return []
     major, minor = torch.cuda.get_device_capability()
     if  major < 10:
         if "sage3" in ret:
@@ -183,7 +190,7 @@ __all__ = [
 ]
 
 def get_cu_seqlens(batch_size, lens, max_len):
-    cu_seqlens = torch.zeros([2 * batch_size + 1], dtype=torch.int32, device="cuda")
+    cu_seqlens = torch.zeros([2 * batch_size + 1], dtype=torch.int32, device="cuda" if torch.cuda.is_available() else "cpu")
 
     for i in range(batch_size):
         s = lens[i] 
@@ -300,11 +307,11 @@ def pay_attention(
             szq = q_lens[0].item() if q_lens != None else lq
             szk = k_lens[0].item() if k_lens != None else lk
             if szq != lq or szk != lk:
-                cu_seqlens_q = torch.tensor([0, szq, lq], dtype=torch.int32, device="cuda")
-                cu_seqlens_k = torch.tensor([0, szk, lk], dtype=torch.int32, device="cuda")
+                cu_seqlens_q = torch.tensor([0, szq, lq], dtype=torch.int32, device="cuda" if torch.cuda.is_available() else "cpu")
+                cu_seqlens_k = torch.tensor([0, szk, lk], dtype=torch.int32, device="cuda" if torch.cuda.is_available() else "cpu")
             else:
-                cu_seqlens_q = torch.tensor([0, lq], dtype=torch.int32, device="cuda")
-                cu_seqlens_k = torch.tensor([0, lk], dtype=torch.int32, device="cuda")
+                cu_seqlens_q = torch.tensor([0, lq], dtype=torch.int32, device="cuda" if torch.cuda.is_available() else "cpu")
+                cu_seqlens_k = torch.tensor([0, lk], dtype=torch.int32, device="cuda" if torch.cuda.is_available() else "cpu")
             q = q.squeeze(0)
             k = k.squeeze(0)
             v = v.squeeze(0)
