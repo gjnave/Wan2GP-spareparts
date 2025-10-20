@@ -1,8 +1,13 @@
 import gradio as gr
 import os
+import sys
 from huggingface_hub import hf_hub_download
 import torch
 from mmgp import offload
+
+# Add the GGF directory to the Python path to resolve imports
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+
 from models.wan.any2video import WanAny2V
 from shared.utils import files_locator as fl
 from shared.utils.audio_video import save_video
@@ -34,11 +39,16 @@ def download_file(repo_id, filename, subfolder=None):
 
 def load_video_model():
     """Loads the video generation model."""
+    print("Starting model load...")
 
     # Download all necessary model files
+    print("Downloading main model...")
     download_file("DeepBeepMeep/Wan2.1", "Wan14BT2VFusioniX_fp16.safetensors")
+    print("Downloading text encoder...")
     download_file("DeepBeepMeep/Wan2.1", "models_t5_umt5-xxl-enc-bf16.safetensors", subfolder="umt5-xxl")
+    print("Downloading VAE...")
     download_file("DeepBeepMeep/Wan2.1", "Wan2.1_VAE.safetensors")
+    print("Downloading CLIP model...")
     download_file("DeepBeepMeep/Wan2.1", "models_clip_open-clip-xlm-roberta-large-vit-huge-14-bf16.safetensors", subfolder="xlm-roberta-large")
 
     fl.set_checkpoints_paths([".", "GGF", "GGF/models"])
@@ -46,6 +56,7 @@ def load_video_model():
     from models.wan.configs import WAN_CONFIGS
     cfg = WAN_CONFIGS['t2v-14B']
 
+    print("Instantiating WanAny2V...")
     wan_model = WanAny2V(
         config=cfg,
         checkpoint_dir=".",
@@ -60,9 +71,12 @@ def load_video_model():
         VAE_dtype=torch.float32,
         mixed_precision_transformer=False
     )
+    print("WanAny2V instantiated.")
 
     pipe = {"transformer": wan_model.model, "text_encoder": wan_model.text_encoder.model, "vae": wan_model.vae.model}
+    print("Profiling with offload...")
     offload.profile(pipe, profile_no=4)
+    print("Profiling complete.")
 
     return wan_model
 
@@ -71,9 +85,12 @@ def generate_video_for_gradio(prompt):
     """Generates a video based on the user's prompt."""
     global video_model
     if video_model is None:
+        print("Model not loaded. Loading now...")
         video_model = load_video_model()
+        print("Model loaded.")
 
     # Simplified generation logic
+    print(f"Generating video for prompt: {prompt}")
     output_tensor, _ = video_model.generate(
         input_prompt=prompt,
         frame_num=16,
@@ -83,7 +100,9 @@ def generate_video_for_gradio(prompt):
 
     # The output from generate is a tensor, we need to save it to a file
     video_path = "output.mp4"
-    save_video(output_tensor, video_path)
+    print(f"Saving video to {video_path}...")
+    save_video(output_tensor.cpu(), video_path)
+    print("Video saved.")
     return video_path
 
 # --- Gradio UI ---
@@ -107,4 +126,5 @@ with gr.Blocks() as demo:
 
 if __name__ == "__main__":
     video_model = None
+    print("Launching Gradio app...")
     demo.launch()
